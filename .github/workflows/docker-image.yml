@@ -13,48 +13,65 @@ env:
   IMAGE_NAME: resume-screening-image
   CONTAINER_NAME: resume-screening-app
   RESOURCE_GROUP: ResumeScreeninglt
+  DNS_NAME_LABEL: resume-screening-ci2026
+  PORT: 8501
+  CPU: 1
+  MEMORY: 2
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
+    # 1️⃣ Checkout code
     - name: Checkout Code
       uses: actions/checkout@v3
 
+    # 2️⃣ Login to Azure using Service Principal
     - name: Azure Login
       uses: azure/login@v1
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
+        auth-type: service-principal
 
+    # 3️⃣ Set Azure subscription explicitly
+    - name: Set Azure Subscription
+      run: |
+        az account set --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    # 4️⃣ Build Docker Image
     - name: Build Docker Image
       run: |
         docker build -t $IMAGE_NAME:latest .
 
+    # 5️⃣ Tag Image for ACR
     - name: Tag Image
       run: |
         docker tag $IMAGE_NAME:latest ${{ secrets.ACR_LOGIN_SERVER }}/$IMAGE_NAME:latest
 
+    # 6️⃣ Login to Azure Container Registry (ACR)
     - name: Login to ACR
       run: |
         echo ${{ secrets.ACR_PASSWORD }} | docker login ${{ secrets.ACR_LOGIN_SERVER }} -u ${{ secrets.ACR_USERNAME }} --password-stdin
 
+    # 7️⃣ Push Docker image to ACR
     - name: Push Image to ACR
       run: |
         docker push ${{ secrets.ACR_LOGIN_SERVER }}/$IMAGE_NAME:latest
 
+    # 8️⃣ Deploy to Azure Container Instance
     - name: Deploy to Azure Container Instance
       run: |
         az container create \
           --resource-group $RESOURCE_GROUP \
           --name $CONTAINER_NAME \
           --image ${{ secrets.ACR_LOGIN_SERVER }}/$IMAGE_NAME:latest \
-          --dns-name-label resume-screening-ci2026 \
-          --ports 8501 \
+          --dns-name-label $DNS_NAME_LABEL \
+          --ports $PORT \
           --registry-login-server ${{ secrets.ACR_LOGIN_SERVER }} \
           --registry-username ${{ secrets.ACR_USERNAME }} \
           --registry-password ${{ secrets.ACR_PASSWORD }} \
-          --cpu 1 \
-          --memory 2 \
+          --cpu $CPU \
+          --memory $MEMORY \
           --os-type Linux \
           --restart-policy Always
