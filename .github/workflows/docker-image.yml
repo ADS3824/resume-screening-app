@@ -1,0 +1,56 @@
+name: Deploy Streamlit to Azure
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  IMAGE_NAME: resume-screening-image
+  CONTAINER_NAME: resume-screening-app
+  RESOURCE_GROUP: ResumeScreeninglt
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Build Docker Image
+      run: |
+        docker build -t $IMAGE_NAME:latest .
+
+    - name: Tag Image
+      run: |
+        docker tag $IMAGE_NAME:latest ${{ secrets.ACR_LOGIN_SERVER }}/$IMAGE_NAME:latest
+
+    - name: Login to ACR
+      run: |
+        echo ${{ secrets.ACR_PASSWORD }} | docker login ${{ secrets.ACR_LOGIN_SERVER }} -u ${{ secrets.ACR_USERNAME }} --password-stdin
+
+    - name: Push Image to ACR
+      run: |
+        docker push ${{ secrets.ACR_LOGIN_SERVER }}/$IMAGE_NAME:latest
+
+    - name: Deploy to Azure Container Instance
+      run: |
+        az container create \
+          --resource-group $RESOURCE_GROUP \
+          --name $CONTAINER_NAME \
+          --image ${{ secrets.ACR_LOGIN_SERVER }}/$IMAGE_NAME:latest \
+          --dns-name-label resume-screening-ci2026 \
+          --ports 8501 \
+          --registry-login-server ${{ secrets.ACR_LOGIN_SERVER }} \
+          --registry-username ${{ secrets.ACR_USERNAME }} \
+          --registry-password ${{ secrets.ACR_PASSWORD }} \
+          --cpu 1 \
+          --memory 2 \
+          --os-type Linux \
+          --restart-policy Always
