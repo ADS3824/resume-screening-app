@@ -32,9 +32,9 @@ jobs:
       uses: azure/login@v1
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
-        auth-type: service-principal
+        auth-type: SERVICE_PRINCIPAL   # ✅ Correct spelling
 
-    # 3️⃣ Set Azure subscription explicitly
+    # 3️⃣ (Optional) Set Azure subscription explicitly
     - name: Set Azure Subscription
       run: |
         az account set --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
